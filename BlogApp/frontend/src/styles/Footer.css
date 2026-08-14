@@ -1,0 +1,200 @@
+/* =========================
+   FOOTER WRAPPER
+========================= */
+.footer {
+  background: #ffffff;
+  color: #0f172a;
+  margin-top: 72px;
+  border-top: 1px solid #eef2f7;
+}
+
+/* =========================
+   GRID LAYOUT
+========================= */
+.footer-grid {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 60px 0;
+
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 0.7fr 1fr;
+  gap: 32px;
+}
+
+/* =========================
+   BRAND
+========================= */
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-logo-badge {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+
+  /* CLEAN BLACK BADGE */
+  background: #111827;
+  color: #ffffff;
+
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.12);
+}
+
+.footer-logo-text {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #111827;
+}
+
+/* =========================
+   DESCRIPTION
+========================= */
+.footer-description {
+  margin-top: 14px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.footer-copyright {
+  margin-top: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* =========================
+   SECTION TITLES
+========================= */
+.footer-section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* =========================
+   LINKS
+========================= */
+.footer-section-links,
+.footer-bottom-links {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.footer-section-links a,
+.footer-bottom-links a {
+  color: #64748b;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.footer-section-links a:hover,
+.footer-bottom-links a:hover {
+  color: #111827;
+  transform: translateX(2px);
+}
+
+/* =========================
+   NEWSLETTER
+========================= */
+.footer-newsletter-container {
+  display: flex;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.footer-newsletter-input {
+  flex: 1;
+  min-width: 0;
+
+  height: 42px;
+  border-radius: 10px;
+  padding: 0 12px;
+
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.footer-newsletter-input:focus {
+  border-color: #111827;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.05);
+}
+
+.footer-subscribe-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+
+  background: #111827;
+  color: #ffffff;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.footer-subscribe-btn:hover {
+  background: #1f2937;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   SOCIALS
+========================= */
+.footer-socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.footer-social-item {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  background: #f1f5f9;
+  color: #334155;
+
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+
+  transition: all 0.2s ease;
+}
+
+.footer-social-item:hover {
+  background: #111827;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 860px) {
+  .footer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
