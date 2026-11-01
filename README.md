@@ -224,7 +224,7 @@ Open the local URL provided by Vite in your browser.
 ![Blog Post](./image/BlogifyPost.png)
 
 ### 👤 User Profile
-![Profile](./image/Profile.png)
+![Profile](./image/BlogifyProfile.png)
 
 ---
 
