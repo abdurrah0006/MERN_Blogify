@@ -1,81 +1,48 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
-import { AuthContext } from "./AuthContextObject";
+import { AuthContext } from "./auth";
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  // True while we verify a saved token, so protected pages don't bounce to /login on refresh.
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem("token")));
 
   useEffect(() => {
-    let isMounted = true;
-    const token = localStorage.getItem("token");
-
-    if (!token) return undefined;
+    if (!localStorage.getItem("token")) return undefined;
+    let active = true;
 
     API.get("/auth/me")
-      .then(({ data }) => {
-        if (!isMounted) return;
-        setUser(data);
-      })
+      .then(({ data }) => active && setUser(data))
       .catch((error) => {
-        console.log(error);
-        localStorage.removeItem("token");
-      });
+        // Only forget the token when the server rejects it, not when it's merely offline.
+        if (error.response?.status === 401) localStorage.removeItem("token");
+      })
+      .finally(() => active && setLoading(false));
 
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, []);
 
-  // Login function
-  const login = async (emailOrData, password) => {
-    if (
-      typeof emailOrData === "object" &&
-      emailOrData !== null &&
-      emailOrData.token
-    ) {
-      localStorage.setItem("token", emailOrData.token);
-      setUser(emailOrData);
-      return;
-    }
+  const authenticate = useCallback(async (path, body) => {
+    const { data } = await API.post(path, body);
+    const { token, ...profile } = data;
+    localStorage.setItem("token", token);
+    setUser(profile);
+  }, []);
 
-    const { data } = await API.post("/auth/login", {
-      email: emailOrData,
-      password,
-    });
+  const login = useCallback((credentials) => authenticate("/auth/login", credentials), [authenticate]);
+  const register = useCallback((details) => authenticate("/auth/register", details), [authenticate]);
 
-    localStorage.setItem("token", data.token);
-    setUser(data);
-  };
-
-  // Register function
-  const register = async (formData) => {
-    if (
-      typeof formData === "object" &&
-      formData !== null &&
-      formData.token
-    ) {
-      localStorage.setItem("token", formData.token);
-      setUser(formData);
-      return;
-    }
-
-    const { data } = await API.post("/auth/register", formData);
-
-    localStorage.setItem("token", data.token);
-    setUser(data);
-  };
-
-  // Logout
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
     setUser(null);
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ user, login, register, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({ user, loading, login, register, logout, updateUser: setUser }),
+    [user, loading, login, register, logout]
   );
-};
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

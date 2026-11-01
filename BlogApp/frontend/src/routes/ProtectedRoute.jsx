@@ -1,15 +1,13 @@
-import { useContext } from "react";
-import { AuthContext } from "../context/AuthContextObject";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/auth";
+import Loader from "../components/Loader";
 
-const ProtectedRoute = ({ children }) => {
-  const { user } = useContext(AuthContext);
+export default function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
+  if (loading) return <Loader label="Checking your session" />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   return children;
-};
-
-export default ProtectedRoute;
+}

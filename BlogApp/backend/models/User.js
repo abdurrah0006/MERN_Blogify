@@ -1,35 +1,26 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import { DEFAULT_AVATAR } from "../config/avatars.js";
 
 const userSchema = new mongoose.Schema(
   {
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    avatar: {
-    type: String,
-    default: "https://api.dicebear.com/9.x/adventurer/svg?seed=default",
-    },
-    bio: {
-      type: String,
-      default: "",
-    },
+    username: { type: String, required: true, unique: true, trim: true, minlength: 2, maxlength: 30 },
+    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    password: { type: String, required: true, minlength: 6, select: false },
+    avatar: { type: String, default: DEFAULT_AVATAR },
+    bio: { type: String, default: "", maxlength: 200 },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-const User = mongoose.model("User", userSchema);
+userSchema.pre("save", async function () {
+  if (this.isModified("password")) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+});
 
-export default User;
+userSchema.methods.matchPassword = function (plain) {
+  return bcrypt.compare(plain, this.password);
+};
+
+export default mongoose.model("User", userSchema);

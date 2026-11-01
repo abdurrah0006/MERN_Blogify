@@ -1,94 +1,143 @@
-import { useContext, useEffect, useState } from "react";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Calendar, FileText, PenLine, Settings } from "lucide-react";
 
-import { AuthContext } from "../context/AuthContextObject";
-
-import API from "../api/axios";
-
+import API, { errorMessage } from "../api/axios";
+import Avatar from "../components/Avatar";
+import ConfirmDialog from "../components/ConfirmDialog";
+import EmptyState from "../components/EmptyState";
+import Loader, { PostGridSkeleton } from "../components/Loader";
 import PostCard from "../components/PostCard";
+import useFetch from "../hooks/useFetch";
+import useTitle from "../hooks/useTitle";
+import { useAuth } from "../context/auth";
+import { formatDate } from "../utils/format";
 
-import "../styles/Profile.css";
+export default function Profile() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const isOwner = !id || id === user?._id;
 
-const Profile = () => {
-  const { user } = useContext(AuthContext);
+  // Own profile uses /posts/mine (includes drafts); other people's uses the public endpoints.
+  const mine = useFetch(isOwner ? "/posts/mine" : null);
+  const person = useFetch(isOwner ? null : `/users/${id}`);
+  const theirs = useFetch(isOwner ? null : `/posts?author=${id}&limit=24`);
 
-  const [posts, setPosts] = useState([]);
+  const [tab, setTab] = useState("published");
+  const [toDelete, setToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const profile = isOwner ? user : person.data;
+  useTitle(profile?.username);
 
-    API.get("/posts/my/posts")
-      .then(({ data }) => {
-        if (isMounted) {
-          setPosts(data);
-        }
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+  if (!isOwner && person.loading) return <Loader label="Loading profile" />;
+  if (!profile) {
+    return (
+      <div className="container page">
+        <EmptyState title="Profile not found" text="That user doesn't exist.">
+          <Link to="/" className="btn">Back to stories</Link>
+        </EmptyState>
+      </div>
+    );
+  }
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const posts = isOwner ? mine.data : theirs.data?.posts;
+  const loading = isOwner ? mine.loading : theirs.loading;
+  const published = posts?.filter((p) => p.status !== "draft") ?? [];
+  const drafts = posts?.filter((p) => p.status === "draft") ?? [];
+  const visible = isOwner && tab === "drafts" ? drafts : published;
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await API.delete(`/posts/${toDelete._id}`);
+      mine.setData((list) => list.filter((p) => p._id !== toDelete._id));
+      setToDelete(null);
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't delete that story."));
+      setToDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
-    <div className="profile-container">
+    <div className="container page">
+      <section className="profile-head">
+        <Avatar id={profile.avatar} name={profile.username} size={128} />
 
-      {/* PROFILE HEADER */}
-      <div className="profile-header">
-
-        <div className="profile-header-content">
-
-          <img
-            src={user.avatar}
-            alt="avatar"
-            className="profile-avatar"
-          />
-
-          <div>
-            <h1 className="profile-username">
-              {user.username}
-            </h1>
-
-            <p className="profile-email">
-              {user.email}
-            </p>
-
-            <p className="profile-bio">
-              {user.bio || "No bio added yet"}
-            </p>
+        <div className="profile-info">
+          <h1>{profile.username}</h1>
+          <p className={profile.bio ? "profile-bio" : "profile-bio hint"}>
+            {profile.bio || (isOwner ? "You haven't added a bio yet." : "No bio yet.")}
+          </p>
+          <div className="meta meta-lg">
+            <span><Calendar size={16} /> Joined {formatDate(profile.createdAt)}</span>
+            <span><FileText size={16} /> {published.length} {published.length === 1 ? "story" : "stories"}</span>
           </div>
-
         </div>
 
-      </div>
-
-      {/* USER POSTS */}
-      <div className="profile-posts-section">
-
-        <h2 className="profile-posts-title">
-          My Posts
-        </h2>
-
-        {posts.length === 0 ? (
-          <p className="profile-empty">No posts yet</p>
-        ) : (
-          <div className="profile-posts-grid">
-
-            {posts.map((post) => (
-              <PostCard
-                key={post._id}
-                post={post}
-              />
-            ))}
-
+        {isOwner && (
+          <div className="row-actions">
+            <Link to="/settings" className="btn">
+              <Settings size={18} /> Edit profile
+            </Link>
+            <Link to="/create" className="btn btn-primary">
+              <PenLine size={18} /> New story
+            </Link>
           </div>
         )}
+      </section>
 
-      </div>
+      <section className="profile-posts">
+        {isOwner ? (
+          <div className="chips" role="tablist" aria-label="Your stories">
+            <button role="tab" aria-selected={tab === "published"} className={`chip ${tab === "published" ? "active" : ""}`} onClick={() => setTab("published")}>
+              Published ({published.length})
+            </button>
+            <button role="tab" aria-selected={tab === "drafts"} className={`chip ${tab === "drafts" ? "active" : ""}`} onClick={() => setTab("drafts")}>
+              Drafts ({drafts.length})
+            </button>
+          </div>
+        ) : (
+          <h2>Stories by {profile.username}</h2>
+        )}
 
+        {error && <div className="alert" role="alert">{error}</div>}
+
+        {!posts && loading ? (
+          <PostGridSkeleton count={3} />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            doodle={tab === "drafts" ? "robot" : "ghost"}
+            title={tab === "drafts" && isOwner ? "No drafts" : "No stories yet"}
+            text={isOwner ? "Anything you write will show up here." : "Check back later."}
+          >
+            {isOwner && (
+              <Link to="/create" className="btn btn-primary">
+                <PenLine size={18} /> Write a story
+              </Link>
+            )}
+          </EmptyState>
+        ) : (
+          <div className="post-grid">
+            {visible.map((post) => (
+              <PostCard key={post._id} post={post} onDelete={isOwner ? setToDelete : undefined} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {toDelete && (
+        <ConfirmDialog
+          title="Delete this story?"
+          message={`“${toDelete.title}” and its comments will be removed for good.`}
+          busy={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setToDelete(null)}
+        />
+      )}
     </div>
   );
-};
-
-export default Profile;
+}

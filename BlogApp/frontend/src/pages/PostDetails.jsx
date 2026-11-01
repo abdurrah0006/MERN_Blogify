@@ -1,144 +1,131 @@
-import { useEffect, useState, useContext } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Calendar, Clock, EyeOff, Pencil, Trash2 } from "lucide-react";
 
-import API from "../api/axios";
+import API, { assetUrl, errorMessage } from "../api/axios";
+import Avatar from "../components/Avatar";
 import CommentSection from "../components/CommentSection";
-import { AuthContext } from "../context/AuthContextObject";
+import ConfirmDialog from "../components/ConfirmDialog";
+import EmptyState from "../components/EmptyState";
+import Loader from "../components/Loader";
+import useFetch from "../hooks/useFetch";
+import useTitle from "../hooks/useTitle";
+import { useAuth } from "../context/auth";
+import { formatDate } from "../utils/format";
 
-import "../styles/PostDetails.css";
-
-const PostDetails = () => {
+export default function PostDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
+  const { data: post, loading, error } = useFetch(`/posts/${id}`);
 
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  useTitle(post?.title);
 
-    API.get(`/posts/${id}`)
-      .then(({ data }) => {
-        if (isMounted) setPost(data);
-      })
-      .catch((error) => console.log(error))
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+  if (loading) return <Loader label="Loading story" />;
 
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+  if (error || !post) {
+    return (
+      <div className="container page">
+        <EmptyState title="Story not found" text="It may have been deleted, or it's still a draft.">
+          <Link to="/" className="btn">
+            <ArrowLeft size={18} /> Back to stories
+          </Link>
+        </EmptyState>
+      </div>
+    );
+  }
+
+  const isAuthor = user?._id === post.author._id;
 
   const handleDelete = async () => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this post?"
-    );
-
-    if (!confirmDelete) return;
-
+    setDeleting(true);
     try {
       await API.delete(`/posts/${id}`);
-      navigate("/");
-    } catch (error) {
-      console.log(error);
+      navigate("/profile", { replace: true });
+    } catch (err) {
+      setDeleteError(errorMessage(err, "Couldn't delete this post."));
+      setDeleting(false);
+      setConfirming(false);
     }
   };
 
-  if (loading) {
-    return <div className="post-loading">Loading...</div>;
-  }
-
-  if (!post) {
-    return <div className="post-not-found">Post not found</div>;
-  }
-
   return (
-    <div className="post-page">
+    <article className="container page article">
+      <Link to="/" className="back-link">
+        <ArrowLeft size={18} /> All stories
+      </Link>
 
-      {/* HERO IMAGE */}
-      {post.image && (
-        <img
-          src={post.image}
-          alt={post.title}
-          className="post-hero-image"
-        />
-      )}
-
-      {/* AUTHOR BAR */}
-      <div className="post-author-bar">
-
-        <div className="post-author-info">
-
-          <img
-            src={post.author.avatar}
-            alt="avatar"
-            className="post-author-avatar"
-          />
-
-          <div>
-            <h3 className="post-author-name">
-              {post.author.username}
-            </h3>
-
-            <p className="post-date">
-              {new Date(post.createdAt).toLocaleDateString()}
-            </p>
-
-          </div>
-
+      {post.status === "draft" && (
+        <div className="alert">
+          <EyeOff size={20} />
+          <span>This story is a draft. Only you can see it.</span>
         </div>
+      )}
+      {deleteError && <div className="alert" role="alert">{deleteError}</div>}
 
-        {user && user._id === post.author._id && (
-          <div className="post-actions">
-
-            <Link
-              to={`/edit/${post._id}`}
-              className="post-edit-btn"
-            >
-              Edit
-            </Link>
-
-            <button
-              onClick={handleDelete}
-              className="post-delete-btn"
-            >
-              Delete
-            </button>
-
-          </div>
-        )}
-
-      </div>
-
-      {/* TAGS */}
       {post.tags?.length > 0 && (
-        <div className="post-tags">
+        <div className="tag-list">
           {post.tags.map((tag) => (
-            <span key={tag} className="post-tag">
-              #{tag}
-            </span>
+            <Link key={tag} to={`/?tag=${encodeURIComponent(tag)}`} className="badge">
+              {tag}
+            </Link>
           ))}
         </div>
       )}
 
-      {/* TITLE */}
-      <h1 className="post-title">
-        {post.title}
-      </h1>
+      <h1 className="article-title">{post.title}</h1>
 
-      {/* CONTENT */}
-      <div className="post-content">
-        {post.content}
+      <div className="byline-row">
+        <Link to={`/profile/${post.author._id}`} className="byline byline-lg">
+          <Avatar id={post.author.avatar} name={post.author.username} size={52} />
+          <span>
+            <strong>{post.author.username}</strong>
+            <span className="meta">
+              <span><Calendar size={14} /> {formatDate(post.createdAt)}</span>
+              <span><Clock size={14} /> {post.readingTime} min read</span>
+            </span>
+          </span>
+        </Link>
+
+        {isAuthor && (
+          <div className="row-actions">
+            <Link to={`/edit/${post._id}`} className="btn btn-sm">
+              <Pencil size={16} /> Edit
+            </Link>
+            <button className="btn btn-sm" onClick={() => setConfirming(true)}>
+              <Trash2 size={16} /> Delete
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* COMMENTS */}
-      <CommentSection postId={post._id} />
+      {post.image && (
+        <figure className="article-cover">
+          <img src={assetUrl(post.image)} alt="" />
+        </figure>
+      )}
 
-    </div>
+      <div className="article-body">
+        {post.content.split(/\n{2,}/).map((paragraph, i) => (
+          <p key={i}>{paragraph}</p>
+        ))}
+      </div>
+
+      {post.status !== "draft" && <CommentSection postId={post._id} postAuthorId={post.author._id} />}
+
+      {confirming && (
+        <ConfirmDialog
+          title="Delete this story?"
+          message="This also removes its comments and can't be undone."
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </article>
   );
-};
-
-export default PostDetails;
+}

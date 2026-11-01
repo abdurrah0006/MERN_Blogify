@@ -1,190 +1,148 @@
 import Post from "../models/Post.js";
+import Comment from "../models/Comment.js";
+import { HttpError, escapeRegex, parseTags, readingTime, removeUpload } from "../utils/http.js";
 
+const AUTHOR_FIELDS = "username avatar";
 
-// CREATE POST
+// List endpoints only need a short excerpt, not the whole article.
+const toListItem = (post) => ({
+  ...post,
+  content: post.content.slice(0, 220),
+  readingTime: readingTime(post.content),
+});
+
+const imagePath = (file) => (file ? `/uploads/${file.filename}` : undefined);
+
+const getOwnedPost = async (req) => {
+  const post = await Post.findById(req.params.id);
+  if (!post) throw new HttpError(404, "Post not found");
+  if (!post.author.equals(req.user._id)) throw new HttpError(403, "You can only change your own posts");
+  return post;
+};
+
+// GET /api/posts?page=&limit=&search=&tag=&author=
+export const getPosts = async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(24, Math.max(1, parseInt(req.query.limit) || 9));
+  const { search, tag, author } = req.query;
+
+  // `$ne: "draft"` keeps posts created before the status field existed.
+  const filter = { status: { $ne: "draft" } };
+
+  if (search) {
+    const regex = new RegExp(escapeRegex(search), "i");
+    filter.$or = [{ title: regex }, { content: regex }, { tags: regex }];
+  }
+  if (tag) filter.tags = new RegExp(`^${escapeRegex(tag)}$`, "i");
+  if (author) filter.author = author;
+
+  const [totalPosts, posts] = await Promise.all([
+    Post.countDocuments(filter),
+    Post.find(filter)
+      .populate("author", AUTHOR_FIELDS)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  res.json({
+    posts: posts.map(toListItem),
+    currentPage: page,
+    totalPages: Math.ceil(totalPosts / limit),
+    totalPosts,
+  });
+};
+
+// GET /api/posts/tags  (most used tags)
+export const getTags = async (req, res) => {
+  const tags = await Post.aggregate([
+    { $match: { status: { $ne: "draft" } } },
+    { $unwind: "$tags" },
+    { $group: { _id: { $toLower: "$tags" }, count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: 12 },
+  ]);
+  res.json(tags.map((t) => ({ name: t._id, count: t.count })));
+};
+
+// GET /api/posts/mine  (includes drafts)
+export const getMyPosts = async (req, res) => {
+  const posts = await Post.find({ author: req.user._id })
+    .populate("author", AUTHOR_FIELDS)
+    .sort({ createdAt: -1 })
+    .lean();
+  res.json(posts.map(toListItem));
+};
+
+// GET /api/posts/:id
+export const getPost = async (req, res) => {
+  const post = await Post.findById(req.params.id).populate("author", AUTHOR_FIELDS).lean();
+  const isAuthor = post && req.user && post.author._id.equals(req.user._id);
+
+  // Drafts are only visible to their author.
+  if (!post || (post.status === "draft" && !isAuthor)) throw new HttpError(404, "Post not found");
+
+  res.json({ ...post, readingTime: readingTime(post.content) });
+};
+
+// POST /api/posts  (multipart/form-data)
 export const createPost = async (req, res) => {
   try {
-    const { title, content, tags } = req.body;
-
-    // Handle uploaded image (if any)
-    const image = req.file
-      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
-      : "";
-
-    // Normalize tags into an array
-    const tagsArray = tags
-      ? Array.isArray(tags)
-        ? tags
-        : tags.split(",").map((t) => t.trim())
-      : [];
+    const { title = "", content = "", tags, status } = req.body;
+    if (!title.trim() || !content.trim()) throw new HttpError(400, "Title and content are required");
 
     const post = await Post.create({
       title,
       content,
-      image,
-      tags: tagsArray,
+      tags: parseTags(tags),
+      status: status === "draft" ? "draft" : "published",
+      image: imagePath(req.file) ?? "",
       author: req.user._id,
     });
 
     res.status(201).json(post);
-
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    if (req.file) removeUpload(imagePath(req.file));
+    throw error;
   }
 };
 
-
-// GET ALL POSTS
-export const getPosts = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-
-    const limit = parseInt(req.query.limit) || 6;
-
-    const search = req.query.search || "";
-
-    const category = req.query.category || "";
-
-    // SEARCH QUERY
-    const query = {
-      title: {
-        $regex: search,
-        $options: "i",
-      },
-    };
-
-    if (category) {
-      query.tags = category;
-    }
-
-    // TOTAL POSTS COUNT
-    const totalPosts = await Post.countDocuments(query);
-
-    // FETCH POSTS
-    const posts = await Post.find(query)
-      .populate("author", "username avatar")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    // SEND RESPONSE
-    res.json({
-      posts,
-      currentPage: page,
-      totalPages: Math.ceil(totalPosts / limit),
-      totalPosts,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-
-// GET SINGLE POST
-export const getPost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
-      .populate("author", "username avatar");
-
-    if (!post) {
-      return res.status(404).json({
-        message: "Post not found",
-      });
-    }
-
-    res.json(post);
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// UPDATE POST
+// PUT /api/posts/:id  (multipart/form-data)
 export const updatePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await getOwnedPost(req);
+    const { title, content, tags, status, removeImage } = req.body;
 
-    if (!post) {
-      return res.status(404).json({
-        message: "Post not found",
-      });
+    if (title !== undefined) post.title = title;
+    if (content !== undefined) post.content = content;
+    if (tags !== undefined) post.tags = parseTags(tags);
+    if (status === "draft" || status === "published") post.status = status;
+
+    if (!post.title.trim() || !post.content.trim()) {
+      throw new HttpError(400, "Title and content are required");
     }
 
-    // OWNER CHECK
-    if (post.author.toString() !== req.user._id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
-    }
+    const previousImage = post.image;
+    if (req.file) post.image = imagePath(req.file);
+    else if (removeImage === "true") post.image = "";
 
-    const updatedPost = await Post.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
+    await post.save();
+    if (post.image !== previousImage) removeUpload(previousImage);
 
-    res.json(updatedPost);
-
+    res.json(await post.populate("author", AUTHOR_FIELDS));
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    if (req.file) removeUpload(imagePath(req.file));
+    throw error;
   }
 };
 
-// DELETE POST
+// DELETE /api/posts/:id
 export const deletePost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
+  const post = await getOwnedPost(req);
 
-    if (!post) {
-      return res.status(404).json({
-        message: "Post not found",
-      });
-    }
+  await Promise.all([post.deleteOne(), Comment.deleteMany({ post: post._id })]);
+  removeUpload(post.image);
 
-    // OWNER CHECK
-    if (post.author.toString() !== req.user._id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
-    }
-
-    await post.deleteOne();
-
-    res.json({
-      message: "Post deleted",
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
+  res.json({ message: "Post deleted" });
 };
-
-// GET LOGGED-IN USER POSTS
-export const getMyPosts = async (req, res) => {
-  try {
-    const posts = await Post.find({
-      author: req.user._id,
-    })
-      .populate("author", "username avatar")
-      .sort({ createdAt: -1 });
-
-    res.json(posts);
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-

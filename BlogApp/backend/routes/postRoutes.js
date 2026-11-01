@@ -1,38 +1,25 @@
-import express from "express";
-
+import { Router } from "express";
 import {
-  createPost,
   getPosts,
+  getTags,
+  getMyPosts,
   getPost,
+  createPost,
   updatePost,
   deletePost,
-  getMyPosts,
 } from "../controllers/postController.js";
-
 import upload from "../middleware/uploadMiddleware.js";
+import { protect, optionalAuth } from "../middleware/authMiddleware.js";
 
-import { protect } from "../middleware/authMiddleware.js";
+const router = Router();
 
-const router = express.Router();
-
-// GET ALL POSTS
 router.get("/", getPosts);
+router.get("/tags", getTags);
+router.get("/mine", protect, getMyPosts);
+router.get("/:id", optionalAuth, getPost);
 
-// GET MY POST
-router.get("/my/posts", protect, getMyPosts);
-
-// GET SINGLE POST
-router.get("/:id", getPost);
-
-// CREATE POST (with upload middleware for handling image uploads)
 router.post("/", protect, upload.single("image"), createPost);
-
-// UPDATE POST
-router.put("/:id", protect, updatePost);
-
-// DELETE POST
+router.put("/:id", protect, upload.single("image"), updatePost);
 router.delete("/:id", protect, deletePost);
-
-// duplicate route removed
 
 export default router;

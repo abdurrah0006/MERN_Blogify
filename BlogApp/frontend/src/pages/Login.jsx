@@ -1,135 +1,61 @@
-import { useContext, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { LogIn, TriangleAlert } from "lucide-react";
 
-import API from "../api/axios";
-import { AuthContext } from "../context/AuthContextObject";
+import { errorMessage } from "../api/axios";
+import AuthLayout from "../components/AuthLayout";
+import PasswordField from "../components/PasswordField";
+import { useAuth } from "../context/auth";
 
-import "../styles/LoginPage.css";
-
-export default function LoginPage() {
+export default function Login() {
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext);
+  const location = useLocation();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
+  const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const change = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const submitHandler = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-
+    setLoading(true);
+    setError("");
     try {
-      setLoading(true);
-
-      const { data } = await API.post("/auth/login", formData);
-
-      login(data);
-      navigate("/");
-    } catch (error) {
-      console.log(error);
-      alert(error?.response?.data?.message || "Login failed");
-    } finally {
+      await login(form);
+      navigate(location.state?.from || "/", { replace: true });
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't log you in."));
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-page">
+    <AuthLayout
+      pageTitle="Log in"
+      headline="Good to see you again."
+      blurb="Pick up where you left off: finish a draft, answer a comment, or read something new."
+      title="Log in"
+      subtitle="Enter your details to continue."
+      footer={<>New here? <Link to="/register">Create an account</Link></>}
+    >
+      <form className="post-form" onSubmit={submit}>
+        {error && <div className="alert" role="alert"><TriangleAlert size={20} /><span>{error}</span></div>}
 
-      {/* LEFT SIDE */}
-      <div className="left-side">
-        <div
-          className="left-bg"
-          style={{
-            backgroundImage:
-              'url("https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80")',
-          }}
-        />
-
-        <div className="logo">
-          <div className="logo-box">B</div>
-          <span>Blogify</span>
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input id="email" name="email" type="email" className="input" autoComplete="email"
+            placeholder="you@example.com" value={form.email} onChange={change} required />
         </div>
 
-        <div className="hero-text">
-          <h1>Blog</h1>
+        <PasswordField name="password" autoComplete="current-password" placeholder="Your password"
+          value={form.password} onChange={change} required />
 
-          <p>
-            Here, we share travel tips, destination guides, and stories that
-            inspire your next adventure.
-          </p>
-        </div>
-
-        <div className="footer-text">
-          ©2026 Blogify. All rights reserved.
-        </div>
-      </div>
-
-      {/* RIGHT SIDE */}
-      <div className="right-side">
-        <div className="form-wrapper">
-          <div className="form-card">
-
-            {/* HEADER */}
-            <div className="heading">
-              <h2>Welcome back</h2>
-              <p>Please enter your details to sign in.</p>
-            </div>
-
-            {/* FORM */}
-            <form onSubmit={submitHandler} className="form">
-
-              {/* EMAIL */}
-              <div>
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="name@company.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              {/* PASSWORD */}
-              <div>
-                  <label>Password</label>
-
-                <input
-                  type="password"
-                  name="password"
-                  placeholder="********"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              {/* SUBMIT BUTTON */}
-              <button type="submit" disabled={loading}>
-                {loading ? "Signing In..." : "Sign In"}
-              </button>
-            </form>
-
-            {/* FOOTER */}
-            <p className="bottom-text">
-              Don&apos;t have an account?{" "}
-              <Link to="/register">Sign up</Link>
-            </p>
-
-          </div>
-        </div>
-      </div>
-    </div>
+        <button className="btn btn-primary btn-block" disabled={loading}>
+          <LogIn size={18} /> {loading ? "Logging in" : "Log in"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

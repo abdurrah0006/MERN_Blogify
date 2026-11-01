@@ -1,163 +1,121 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ChevronDown, LogOut, PenLine, Search, Settings, User } from "lucide-react";
 
-import {
-  Link,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import Logo from "./Logo";
+import Avatar from "./Avatar";
+import { useAuth } from "../context/auth";
 
-import { Search } from "lucide-react";
-
-import { AuthContext } from "../context/AuthContextObject";
-
-import "../styles/Header.css";
-
-export default function Header({
-  search,
-  setSearch,
-}) {
-  const { user, logout } =
-    useContext(AuthContext);
-
+// Keyed by the current query so the input resets when the URL changes.
+function SearchBar() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const q = params.get("q") || "";
 
-  const location = useLocation();
-
-  const [scrolled, setScrolled] =
-    useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 40);
-    };
-
-    window.addEventListener(
-      "scroll",
-      handleScroll
-    );
-
-    return () =>
-      window.removeEventListener(
-        "scroll",
-        handleScroll
-      );
-  }, []);
-
-  const isHome =
-    location.pathname === "/";
+  const onSubmit = (e) => {
+    e.preventDefault();
+    const value = new FormData(e.currentTarget).get("q").trim();
+    navigate(value ? `/?q=${encodeURIComponent(value)}` : "/");
+  };
 
   return (
-    <header
-      className={`header ${
-        isHome
-          ? scrolled
-            ? "home-header-scrolled"
-            : "home-header-normal"
-          : "page-header"
-      }`}
-    >
-      <div className="header-container">
+    <form key={q} role="search" className="search" onSubmit={onSubmit}>
+      <Search size={20} className="search-icon" aria-hidden="true" />
+      <input
+        name="q"
+        type="search"
+        className="input"
+        placeholder="Search stories"
+        aria-label="Search stories"
+        defaultValue={q}
+      />
+    </form>
+  );
+}
 
-        <Link
-          to="/"
-          className="header-logo"
-        >
-          <div className="header-logo-badge">
-            B
-          </div>
-          <span
-            className={`header-logo-text ${
-              scrolled || !isHome
-                ? "scrolled"
-                : "normal"
-            }`}
-          >
-            Blogify
-          </span>
-        </Link>
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
-        <div className="header-search-wrapper">
-          <div
-            className={`header-search ${
-              scrolled || !isHome
-                ? "scrolled"
-                : "normal"
-            }`}
+  useEffect(() => {
+    if (!open) return undefined;
+    const onClick = (e) => !ref.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="menu" ref={ref}>
+      <button
+        type="button"
+        className="menu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Avatar id={user.avatar} name={user.username} size={36} />
+        <ChevronDown size={18} className="hide-sm" />
+      </button>
+
+      {open && (
+        <div className="menu-panel" role="menu">
+          <p className="menu-name">{user.username}</p>
+          <Link to="/profile" role="menuitem" className="menu-item" onClick={() => setOpen(false)}>
+            <User size={18} /> Your profile
+          </Link>
+          <Link to="/settings" role="menuitem" className="menu-item" onClick={() => setOpen(false)}>
+            <Settings size={18} /> Edit profile
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            onClick={() => {
+              setOpen(false);
+              logout();
+              navigate("/");
+            }}
           >
-            <input
-              type="text"
-              placeholder="Search blogs..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <Search
-              size={22}
-              className={`header-search-icon ${
-                scrolled || !isHome
-                  ? "scrolled"
-                  : "normal"
-              }`}
-            />
-          </div>
+            <LogOut size={18} /> Log out
+          </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+export default function Header() {
+  const { user } = useAuth();
+
+  return (
+    <header className="header">
+      <div className="container header-inner">
+        <Logo />
+        <SearchBar />
 
         <div className="header-actions">
-          <Link
-            to={user ? "/create" : "/login"}
-            className={`header-create-btn ${
-              scrolled || !isHome
-                ? "scrolled"
-                : "normal"
-            }`}
-          >
-            Create Post
+          <Link to="/create" className="btn btn-primary">
+            <PenLine size={18} />
+            <span className="hide-sm">Write</span>
           </Link>
 
           {user ? (
-            <>
-              <Link
-                to="/profile"
-                className={`header-profile-link ${
-                  scrolled || !isHome
-                    ? "scrolled"
-                    : "normal"
-                }`}
-              >
-                {user.username}
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  navigate("/login");
-                }}
-                className={`header-logout-btn ${
-                  scrolled || !isHome
-                    ? "scrolled"
-                    : "normal"
-                }`}
-              >
-                Logout
-              </button>
-            </>
+            <UserMenu />
           ) : (
             <>
-              <Link
-                to="/login"
-                className={`header-login-link ${
-                  scrolled || !isHome
-                    ? "scrolled"
-                    : "normal"
-                }`}
-              >
-                Log In
+              <Link to="/login" className="btn">
+                Log in
               </Link>
-              <Link
-                to="/register"
-                className="header-signup-btn"
-              >
-                Sign Up
+              <Link to="/register" className="btn hide-sm">
+                Sign up
               </Link>
             </>
           )}

@@ -1,66 +1,46 @@
-import { useState } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+import Layout from "./components/Layout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 import Home from "./pages/Home";
+import PostDetails from "./pages/PostDetails";
 import CreatePost from "./pages/CreatePost";
 import EditPost from "./pages/EditPost";
-import PostDetails from "./pages/PostDetails";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import NotFound from "./pages/NotFound";
 
-function App() {
-  const [search, setSearch] = useState("");
-  const location = useLocation();
-  const hideShell = ["/login", "/register"].includes(location.pathname);
+const guard = (page) => <ProtectedRoute>{page}</ProtectedRoute>;
 
+export default function App() {
   return (
-    <div className="app-shell">
-      {!hideShell && <Header search={search} setSearch={setSearch} />}
+    <>
+      {/* Gives the doodles a slightly hand-drawn wobble (see .wobble in base.css) */}
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+        <filter id="doodle-wobble">
+          <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3" />
+          <feDisplacementMap in="SourceGraphic" scale="2.5" />
+        </filter>
+      </svg>
 
       <Routes>
-        <Route path="/" element={<Home search={search} />} />
-
-        <Route
-          path="/create"
-          element={
-            <ProtectedRoute>
-              <CreatePost />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route path="/post/:id" element={<PostDetails />} />
-
-        <Route
-          path="/edit/:id"
-          element={
-            <ProtectedRoute>
-              <EditPost />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          }
-        />
-
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-      </Routes>
 
-      {!hideShell && <Footer />}
-    </div>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/post/:id" element={<PostDetails />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/create" element={guard(<CreatePost />)} />
+          <Route path="/edit/:id" element={guard(<EditPost />)} />
+          <Route path="/profile" element={guard(<Profile />)} />
+          <Route path="/settings" element={guard(<EditProfile />)} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
-
-export default App;

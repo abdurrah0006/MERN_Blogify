@@ -1,147 +1,137 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { BookOpen, PenLine, X } from "lucide-react";
 
-import API from "../api/axios";
-import TravelCarouselHero from "../components/HeroCarousel";
+import PostCard from "../components/PostCard";
+import Pagination from "../components/Pagination";
+import EmptyState from "../components/EmptyState";
+import Doodle from "../components/Doodle";
+import { PostGridSkeleton } from "../components/Loader";
+import useFetch from "../hooks/useFetch";
+import useTitle from "../hooks/useTitle";
+import { useAuth } from "../context/auth";
 
-import "../styles/Home.css";
-
-export default function Home({ search }) {
-  const [posts, setPosts] = useState([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-
-  useEffect(() => {
-    let isMounted = true;
-    let url = `/posts?page=${page}&limit=9`;
-
-    if (search) {
-      url += `&search=${encodeURIComponent(search)}`;
-    }
-
-    if (selectedCategory !== "All") {
-      url += `&category=${encodeURIComponent(selectedCategory)}`;
-    }
-
-    API.get(url)
-      .then(({ data }) => {
-        if (!isMounted) return;
-
-        setPosts(data.posts);
-        setTotalPages(data.totalPages);
-      })
-      .catch((error) => {
-        console.log(error);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [page, search, selectedCategory]);
+function Hero() {
+  const { user } = useAuth();
 
   return (
-    <>
-      <TravelCarouselHero />
-
-      <div className="home-section">
-        <div className="home-container">
-          <h1 className="home-title">Blog</h1>
-
-          <p className="home-subtitle">
-            Here, we share travel tips, destination guides, and stories that
-            inspire your next adventure.
-          </p>
-
-          <div className="home-posts-grid">
-            {posts.map((post) => (
-              <Link
-                to={`/post/${post._id}`}
-                key={post._id}
-                className="home-post-card"
-              >
-                <div className="home-post-image-wrapper">
-                  <img
-                    src={
-                      post.image ||
-                      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"
-                    }
-                    alt={post.title}
-                    className="home-post-image"
-                  />
-
-                  <span className="home-post-tag">
-                    {post.tags?.[0] || "Blog"}
-                  </span>
-                </div>
-
-                <div className="home-post-meta">
-                  <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                  <span>-</span>
-                  <span>5 mins read</span>
-                </div>
-
-                <h2 className="home-post-title">{post.title}</h2>
-
-                <p className="home-post-excerpt">{post.content}</p>
-
-                <div className="home-post-author">
-                  <img
-                    src={post.author?.avatar}
-                    alt={post.author?.username}
-                    className="home-post-avatar"
-                  />
-
-                  <span className="home-post-author-name">
-                    {post.author?.username}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          {posts.length === 0 && (
-            <div className="home-empty-state">
-              <h2 className="home-empty-title">No blogs found</h2>
-              <p className="home-empty-text">Try searching another topic.</p>
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="home-pagination">
-              <button
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="home-pagination-btn home-pagination-prev"
-              >
-                Prev
-              </button>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (num) => (
-                  <button
-                    key={num}
-                    onClick={() => setPage(num)}
-                    className={`home-pagination-btn ${
-                      page === num ? "active" : ""
-                    }`}
-                  >
-                    {num}
-                  </button>
-                )
-              )}
-
-              <button
-                disabled={page === totalPages}
-                onClick={() => setPage(page + 1)}
-                className="home-pagination-btn home-pagination-next"
-              >
-                Next
-              </button>
-            </div>
-          )}
+    <section className="hero">
+      <div>
+        <h1>Write it down. Put it out there.</h1>
+        <p>
+          Blogify is a home for short essays, field notes and half-formed ideas. Read what other
+          people are thinking about, or publish your own in a few minutes.
+        </p>
+        <div className="hero-actions">
+          <Link to={user ? "/create" : "/register"} className="btn btn-primary">
+            <PenLine size={18} /> Start writing
+          </Link>
+          <a href="#stories" className="btn">
+            <BookOpen size={18} /> Browse stories
+          </a>
         </div>
       </div>
-    </>
+
+      <div className="hero-art" aria-hidden="true">
+        <div className="tile tile-1"><Doodle id="cat" /></div>
+        <div className="tile tile-2"><Doodle id="owl" /></div>
+        <div className="tile tile-3"><Doodle id="mushroom" /></div>
+      </div>
+    </section>
+  );
+}
+
+export default function Home() {
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") || "";
+  const tag = params.get("tag") || "";
+  const page = Number(params.get("page")) || 1;
+  const filtering = Boolean(q || tag);
+
+  useTitle(q ? `Search: ${q}` : tag ? `#${tag}` : "");
+
+  const query = new URLSearchParams({ page, limit: 9 });
+  if (q) query.set("search", q);
+  if (tag) query.set("tag", tag);
+
+  const posts = useFetch(`/posts?${query}`);
+  const tags = useFetch("/posts/tags");
+
+  const update = (changes) =>
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      Object.entries(changes).forEach(([key, value]) => (value ? next.set(key, value) : next.delete(key)));
+      return next;
+    });
+
+  const list = posts.data?.posts;
+
+  return (
+    <div className="container">
+      {!filtering && page === 1 && <Hero />}
+
+      <section id="stories" className="page">
+        <div className="section-head">
+          <h2>
+            {q ? `Results for “${q}”` : tag ? `Stories tagged ${tag}` : "Latest stories"}
+          </h2>
+          {filtering && (
+            <button className="btn btn-sm" onClick={() => setParams({})}>
+              <X size={16} /> Clear filters
+            </button>
+          )}
+        </div>
+
+        {tags.data?.length > 0 && (
+          <div className="chips" role="group" aria-label="Filter by tag">
+            <button className={`chip ${!tag ? "active" : ""}`} onClick={() => update({ tag: "", page: "" })}>
+              All
+            </button>
+            {tags.data.map(({ name }) => (
+              <button
+                key={name}
+                className={`chip ${tag.toLowerCase() === name ? "active" : ""}`}
+                onClick={() => update({ tag: name, page: "" })}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {posts.error ? (
+          <EmptyState title="Couldn't load stories" text="Check that the backend is running, then try again.">
+            <button className="btn" onClick={posts.reload}>Try again</button>
+          </EmptyState>
+        ) : !list ? (
+          <PostGridSkeleton />
+        ) : list.length === 0 ? (
+          <EmptyState
+            doodle="cloud"
+            title={filtering ? "No stories match that" : "No stories yet"}
+            text={filtering ? "Try a different search or tag." : "Be the first to publish something."}
+          >
+            <Link to="/create" className="btn btn-primary">
+              <PenLine size={18} /> Write a story
+            </Link>
+          </EmptyState>
+        ) : (
+          <>
+            <div className={`post-grid ${posts.loading ? "is-loading" : ""}`}>
+              {list.map((post) => (
+                <PostCard key={post._id} post={post} />
+              ))}
+            </div>
+            <Pagination
+              page={posts.data.currentPage}
+              totalPages={posts.data.totalPages}
+              onChange={(n) => {
+                update({ page: n > 1 ? String(n) : "" });
+                document.getElementById("stories")?.scrollIntoView();
+              }}
+            />
+          </>
+        )}
+      </section>
+    </div>
   );
 }

@@ -1,76 +1,46 @@
-import "../styles/Footer.css";
+import { Link } from "react-router-dom";
+import Logo from "./Logo";
+import { useAuth } from "../context/auth";
 
-const Footer = () => {
-  const socials = ["Instagram", "X", "Facebook", "Discord", "TikTok"];
+export default function Footer() {
+  const { user } = useAuth();
 
   return (
     <footer className="footer">
-      <div className="footer-grid">
+      <div className="container footer-grid">
         <div>
-          <div className="footer-brand">
-            <div className="footer-logo-badge">H</div>
-            <h2 className="footer-logo-text">Horizone</h2>
-          </div>
-
-          <p className="footer-description">
-            Our mission is to equip modern explorers with cutting-edge,
-            functional, and stylish bags that elevate every adventure.
-          </p>
-
-          <p className="footer-copyright">
-            (c)2024 Horizone. All rights reserved.
+          <Logo />
+          <p className="footer-blurb">
+            A home for short essays, field notes and half-formed ideas. Read something, write
+            something.
           </p>
         </div>
 
-        <div>
-          <h3 className="footer-section-title">About</h3>
+        <nav aria-label="Explore">
+          <h3>Explore</h3>
+          <Link to="/">All stories</Link>
+          <Link to="/create">Write a story</Link>
+        </nav>
 
-          <div className="footer-section-links">
-            <a href="#">About Us</a>
-            <a href="#">Blog</a>
-            <a href="#">Career</a>
-          </div>
-        </div>
+        <nav aria-label="Account">
+          <h3>Account</h3>
+          {user ? (
+            <>
+              <Link to="/profile">Your profile</Link>
+              <Link to="/settings">Edit profile</Link>
+            </>
+          ) : (
+            <>
+              <Link to="/login">Log in</Link>
+              <Link to="/register">Create an account</Link>
+            </>
+          )}
+        </nav>
+      </div>
 
-        <div>
-          <h3 className="footer-section-title">Support</h3>
-
-          <div className="footer-section-links">
-            <a href="#">Contact Us</a>
-            <a href="#">Return</a>
-            <a href="#">FAQ</a>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="footer-section-title">Get Updates</h3>
-
-          <div className="footer-newsletter-container">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="footer-newsletter-input"
-            />
-
-            <button className="footer-subscribe-btn">Subscribe</button>
-          </div>
-
-          <div className="footer-socials">
-            {socials.map((item) => (
-              <div key={item} className="footer-social-item">
-                {item.charAt(0)}
-              </div>
-            ))}
-          </div>
-
-          <div className="footer-bottom-links">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-          </div>
-        </div>
+      <div className="container footer-bottom">
+        <span>© {new Date().getFullYear()} Blogify. All rights reserved.</span>
       </div>
     </footer>
   );
-};
-
-export default Footer;
+}
